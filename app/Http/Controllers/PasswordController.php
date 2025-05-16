@@ -134,5 +134,5 @@ class PasswordController extends Controller
         // 8、一切正常，更新用户密码
         $user->update(['password' => bcrypt($request->input('password'))]);
         return redirect()->route('login')->with('success', 'Your password has been reset!');
-    }// 22:10 继续
+    }
 }

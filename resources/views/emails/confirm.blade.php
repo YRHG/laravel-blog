@@ -5,7 +5,7 @@
     <title>注册确认链接</title>
 </head>
 <body>
-<h1>感谢您在 LuStormstout's blog 注册！</h1>
+<h1>感谢您在 AlbertHan's blog 注册！</h1>
 
 <p>
     请点击下面的链接完成注册：
