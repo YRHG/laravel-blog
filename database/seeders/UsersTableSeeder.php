@@ -18,8 +18,8 @@ class UsersTableSeeder extends Seeder
 
         // 将用户 ID 为 1 的用户信息设置成我们自己的
         $user = User::find(1);
-        $user->name = 'Lu Stormstout';
-        $user->email = 'lustormstout@gmail.com';
+        $user->name = 'AlbertHan';
+        $user->email = 'AlbertHan@gmail.com';
         $user->is_admin = true;
         $user->save();
     }
