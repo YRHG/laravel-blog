@@ -7,6 +7,7 @@ use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
 
 class UsersController extends Controller
 {
@@ -21,10 +22,24 @@ class UsersController extends Controller
     {
         // 只允许未认证的用户访问注册页面
         // 如果访问非 show, create, store 方法则需要认证, 会自动重定向到登录页面
-        $this->middleware('auth')->except(['show', 'create', 'store']);
+        $this->middleware('auth')->except(['show', 'create', 'store', 'index', 'confirmEmail']);
 
         // 只允许未认证的用户访问注册页面
         $this->middleware('guest')->only('create');
+
+        // 限制注册请求的频率, 一个小时内最多 10 次请求
+        $this->middleware('throttle:10,60')->only('store');
+    }
+
+    /**
+     * Show the list of users.
+     *
+     * @return View
+     */
+    public function index(): View
+    {
+        $users = User::paginate($this->perPage); // 22:04
+        return view('users.index', compact('users'));
     }
 
     /**
@@ -70,11 +85,11 @@ class UsersController extends Controller
             'password' => bcrypt($request->password)
         ]);
 
-        // Log the user in
-        auth()->login($user);
+        // Send email confirmation
+        $this->sendEmailConfirmationTo($user);
 
         // Redirect to the user's profile with a session flash message.
-        return redirect()->route('users.show', $user)->with('success', 'User created successfully.');
+        return redirect()->route('home')->with('success', 'User created successfully. Please check your email to activate your account.');
     }
 
     /**
@@ -86,10 +101,9 @@ class UsersController extends Controller
      */
     public function edit(User $user): View
     {
-        // 检查当前认证用户是否有权限更新该用户
-        // 这会自动调用 UserPolicy 中的 update 方法进行权限判断
-        // 如果用户无权限，将会抛出 403 Forbidden 响应
-
+        // Check if the authenticated user is authorized to update the user
+        // This will automatically check the UserPolicy for the update method
+        // If the user is not authorized, it will throw a 403 Forbidden response
         $this->authorize('update', $user);
         return view('users.edit', compact('user'));
     }
@@ -100,27 +114,83 @@ class UsersController extends Controller
      * @param Request $request
      * @param User $user
      * @return RedirectResponse
+     * @throws AuthorizationException
      */
     public function update(Request $request, User $user): RedirectResponse
     {
+        $this->authorize('update', $user);
+
         // Validate the request data
         $request->validate([
             'name' => 'required|string|max:50',
             'password' => 'nullable|string|min:6|confirmed',
         ]);
 
-        // 更新用户信息
-        // $request->filled() 用于判断字段是否存在且不为空
-        // $request->only() 用于从请求中获取指定的字段
-
+        // Update the user
+        // $request->filled() checks if the field is present and not empty
+        // $request->only() retrieves only the specified fields from the request
         $data = $request->only('name');
         if ($request->filled('password')) {
             $data = $request->only('name', 'password');
         }
         $user->update($data);
 
-        // 重定向到用户的个人资料页，并携带一条 session 闪存消息
-
+        // Redirect to the user's profile with a session flash message.
         return redirect()->route('users.show', $user)->with('success', 'User updated successfully.');
+    }
+
+    /**
+     * Delete the user.
+     *
+     * @param User $user
+     * @return RedirectResponse
+     * @throws AuthorizationException
+     */
+    public function destroy(User $user): RedirectResponse
+    {
+        $this->authorize('destroy', $user);
+
+        // Delete the user
+        $user->delete();
+
+        // Redirect to the users list with a session flash message.
+        return redirect()->route('users.index')->with('success', 'User deleted successfully.');
+    }
+
+    /**
+     * Send an email confirmation to the user.
+     *
+     * @param $user
+     * @return void
+     */
+    protected function sendEmailConfirmationTo($user): void
+    {
+        $view = 'emails.confirm';
+        $data = compact('user');
+        $to = $user->email;
+        $subject = "感谢注册 LuStormstout's blog 应用！请确认你的邮箱。";
+
+        // Send the email
+        Mail::send($view, $data, function ($message) use ($to, $subject) {
+            $message->to($to)->subject($subject);
+        });
+    }
+
+    /**
+     * 验证用户邮箱, 修改用户信息为激活, 删除 activation_token
+     *
+     * @param $token
+     * @return RedirectResponse
+     */
+    public function confirmEmail($token): RedirectResponse
+    {
+        $user = User::where('activation_token', $token)->firstOrFail();
+
+        $user->activation_token = null;
+        $user->activated = true;
+        $user->save();
+
+        auth()->login($user);
+        return redirect()->route('users.show', $user)->with('success', 'User activated successfully.');
     }
 }
