@@ -3,7 +3,6 @@
 namespace Database\Seeders;
 
 use App\Models\User;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
 class FollowersTableSeeder extends Seeder
@@ -27,6 +26,18 @@ class FollowersTableSeeder extends Seeder
         // 除了用户 1 之外的所有用户都关注用户 1
         foreach ($followers as $follower) {
             $follower->follow($userId);
+        }
+
+        // 所有用户关注用户名为 AlbertHan 的用户
+        $albert = User::where('name', 'AlbertHan')->first();
+        if ($albert) {
+            $albertId = $albert->id;
+            foreach ($users as $user) {
+                // 避免用户自己关注自己
+                if ($user->id !== $albertId) {
+                    $user->follow($albertId);
+                }
+            }
         }
     }
 }
